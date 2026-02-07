@@ -1,0 +1,64 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Compile I2C_TestDevice",
+            "type": "process",
+            "command": "${env:USERPROFILE}/.pico-sdk/ninja/v1.12.1/ninja.exe",
+            "args": [
+                "-C",
+                "${workspaceFolder}/build"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Clean Build I2C_TestDevice",
+            "type": "shell",
+            "command": "Remove-Item",
+            "args": [
+                "-Path",
+                "${workspaceFolder}/build",
+                "-Recurse",
+                "-Force",
+                "-ErrorAction",
+                "SilentlyContinue;",
+                "mkdir",
+                "${workspaceFolder}/build;",
+                "cd",
+                "${workspaceFolder}/build;",
+                "cmake",
+                "..;",
+                "cmake",
+                "--build",
+                "."
+            ],
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "CMake Configure I2C_TestDevice",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-B",
+                "${workspaceFolder}/build",
+                "-S",
+                "${workspaceFolder}"
+            ],
+            "group": "build",
+            "problemMatcher": []
+        }
+    ]
+}
