@@ -16,8 +16,8 @@
 │  │ GPIO 7 RST   │                                                │
 │  └──────────────┘           I2C Audio (Slave)                    │
 │                             ┌──────────────┐                     │
-│  Button Controls            │ GPIO 26 SDA  │ ← From Master      │
-│  ┌──────────────┐           │ GPIO 27 SCL  │ ← From Master      │
+│  Button Controls            │ GPIO 20 SDA  │ ← From Master      │
+│  ┌──────────────┐           │ GPIO 21 SCL  │ ← From Master      │
 │  │ GPIO 14 UP   │           └──────────────┘                     │
 │  │ GPIO 15 DOWN │                                                │
 │  └──────────────┘                                                │
@@ -46,20 +46,11 @@ Press buttons to select which audio beam to monitor:
 │                                                                │
 │ Frequency Spectrum                                             │ ← Title
 │                                                                │
-│ [BAR1][BAR2][BAR3][BAR4][BAR5][BAR6][BAR7][BAR8][BAR9][BAR10]│ ← Row 1 (bins 0-9)
-│   █     █     █     █     █     █     █     █     █     █    │
-│   █     █     █     █     █     █     █     █     █     █    │
-│   █     █     █     █     █     █     █     █     █     █    │
-│   █     █     █     █     █     █     █     █     █     █    │
-│  Blue  Blue  Blue   ←─── Green ───→  ←────── Red ──────→    │ ← Color coding
+│ ││││││││││││││││││││││││││││││││││││││││││ │
+│ │││││││││││││││││││││││││││││││││││││││││ │
+│ (40-bin spectrogram with column dividers)                      │
 │                                                                │
-│ [BAR11][BAR12][BAR13][BAR14][BAR15][BAR16][BAR17][BAR18]...  │ ← Row 2 (bins 10-19)
-│   █     █     █     █     █     █     █     █     █     █    │
-│   █     █     █     █     █     █     █     █     █     █    │
-│   █     █     █     █     █     █     █     █     █     █    │
-│   █     █     █     █     █     █     █     █     █     █    │
-│                                                                │
-│ 500-5000 Hz (20 bins)                                         │ ← Legend
+│ 500-5500 Hz (40 bins)                                         │ ← Legend
 └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -103,34 +94,13 @@ Check USB serial output (115200 baud) for detailed status.
 
 ## How it works (summary)
 
-- I2C1 slave (GPIO 26/27) receives a 41-byte packet: header 0xAA + 20 bins (16-bit big-endian).
+- I2C0 slave (GPIO 20/21) receives a 41-byte packet: header 0xAA + 40 bins (8-bit).
 - Buttons on GPIO 14/15 change the active I2C address (0x60–0x67).
-- The TFT renders 20 bars in two rows with color bands (low=blue, mid=green, high=red).
+- The TFT renders a 40-bin spectrogram with column dividers.
 - Serial output prints the received bin values for validation.
 
 ## Frequency bin centers (Hz)
 
-Derived from $f_s=16000$, $N=256$, start bin 8 (500 Hz), with 20 output bins linearly interpolated across the 500–5000 Hz range.
+Derived from $f_s=16000$, $N=256$, start bin 8 (500 Hz), with 40 output bins formed by summing pairs of FFT bins across the 500–5500 Hz range. Approximate bin centers are:
 
-| Bin | Center (Hz) |
-| --- | ----------: |
-| 0 | 500 |
-| 1 | 725 |
-| 2 | 950 |
-| 3 | 1175 |
-| 4 | 1400 |
-| 5 | 1625 |
-| 6 | 1850 |
-| 7 | 2075 |
-| 8 | 2300 |
-| 9 | 2525 |
-| 10 | 2750 |
-| 11 | 2975 |
-| 12 | 3200 |
-| 13 | 3425 |
-| 14 | 3650 |
-| 15 | 3875 |
-| 16 | 4100 |
-| 17 | 4325 |
-| 18 | 4550 |
-| 19 | 4775 |
+$$f_{bin}(n) = 500 + 125n\;\text{Hz},\quad n=0\ldots39$$

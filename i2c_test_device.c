@@ -9,7 +9,6 @@
 #include "st7796_driver.h"
 
 // I2C Configuration - Using I2C0 on GPIO 20 (SDA) and GPIO 21 (SCL)
-// Alternative: If GPIO 20/21 don't work, try I2C1 on GPIO 26/27
 #define I2C_PORT i2c0
 #define I2C_SDA 20  // I2C0 SDA (alternative pins)
 #define I2C_SCL 21  // I2C0 SCL (alternative pins)
@@ -31,13 +30,13 @@
 
 // Packet format from master
 #define PACKET_HEADER 0xAA
-#define PACKET_SIZE 41  // 1 header + 20 bins × 2 bytes
-#define NUM_FREQ_BINS 20
+#define PACKET_SIZE 41  // 1 header + 40 bins × 1 byte
+#define NUM_FREQ_BINS 40
 
-// Spectrogram buffer: 100 time samples × 20 frequency bins
+// Spectrogram buffer: 100 time samples × 40 frequency bins
 // Using circular buffer with head pointer for O(1) insertion
 #define SPECTROGRAM_DEPTH 100
-uint16_t spectrogram_buffer[SPECTROGRAM_DEPTH][NUM_FREQ_BINS] = {0};
+uint8_t spectrogram_buffer[SPECTROGRAM_DEPTH][NUM_FREQ_BINS] = {0};
 volatile int spectrogram_head = 0;  // Points to newest data row (circular index)
 
 // Receive buffer
@@ -50,11 +49,18 @@ volatile uint8_t current_i2c_address = I2C_BASE_ADDR;
 volatile bool address_changed = false;
 
 // Frequency bin data for display
-uint16_t freq_bins[NUM_FREQ_BINS] = {0};
+uint8_t freq_bins[NUM_FREQ_BINS] = {0};
 volatile bool display_update_needed = false;
 
 // Core synchronization flag for safe address changes
 volatile bool core1_paused = false;
+
+// Core 1 watchdog heartbeat (ms)
+volatile uint32_t core1_last_beat_ms = 0;
+#define CORE1_WATCHDOG_MS 5000
+
+// Display update rate (ms)
+#define DISPLAY_UPDATE_MS 2000
 
 // Performance monitoring
 volatile uint32_t packet_count = 0;
@@ -84,6 +90,9 @@ void gpio_callback(uint gpio, uint32_t events) {
         }
     }
 }
+
+// Forward declaration for Core 1 display loop
+void core1_display_loop(void);
 
 // Read address from GPIO pins
 uint8_t read_address_selection(void) {
@@ -136,9 +145,9 @@ void process_packet(void) {
         return;
     }
     
-    // Extract frequency bins
+    // Extract frequency bins (8-bit values)
     for (int i = 0; i < NUM_FREQ_BINS; i++) {
-        freq_bins[i] = (rx_buffer[1 + i * 2] << 8) | rx_buffer[2 + i * 2];
+        freq_bins[i] = rx_buffer[1 + i];
     }
     
     // Circular buffer insert: NO data copying! Just update index and overwrite oldest
@@ -164,7 +173,7 @@ void process_packet(void) {
 // Map magnitude value to color (spectrogram gradient)
 // Black → Blue → Cyan → Green → Yellow → Red
 // RGB565: RRRRRGGGGGGBBBBB (5-bit R, 6-bit G, 5-bit B)
-uint16_t magnitude_to_color(uint16_t value, uint16_t max_value) {
+uint16_t magnitude_to_color(uint8_t value, uint8_t max_value) {
     if (value == 0 || max_value == 0) return COLOR_BLACK;  // 0x0000
     
     // Normalize to 0-255 range
@@ -242,7 +251,7 @@ void update_display(void) {
     int current_head = spectrogram_head;
     
     // Find max value in buffer for color scaling
-    uint16_t max_value = 1;
+    uint8_t max_value = 1;
     for (int row = 0; row < SPECTROGRAM_DEPTH; row++) {
         for (int col = 0; col < NUM_FREQ_BINS; col++) {
             if (spectrogram_buffer[row][col] > max_value) {
@@ -250,10 +259,10 @@ void update_display(void) {
             }
         }
     }
-    if (max_value < 32) max_value = 32;  // Minimum scaling
+    if (max_value < 16) max_value = 16;  // Minimum scaling
     
-    // Draw spectrogram: 20 bins × 24px wide = 480px, 100 samples × 3px tall = 300px
-    const int pixel_width = 24;   // Each frequency bin is 24 pixels wide
+    // Draw spectrogram: 40 bins × 12px wide = 480px, 100 samples × 3px tall = 300px
+    const int pixel_width = 12;   // Each frequency bin is 12 pixels wide
     const int pixel_height = 3;   // Each time sample is 3 pixels tall
     const int start_y = 30;        // Start below the I2C address text
     
@@ -264,7 +273,7 @@ void update_display(void) {
         int buffer_idx = (current_head - 1 - display_row + SPECTROGRAM_DEPTH) % SPECTROGRAM_DEPTH;
         
         for (int col = 0; col < NUM_FREQ_BINS; col++) {
-            uint16_t value = spectrogram_buffer[buffer_idx][col];
+            uint8_t value = spectrogram_buffer[buffer_idx][col];
             uint16_t color = magnitude_to_color(value, max_value);
             
             int x = col * pixel_width;
@@ -274,8 +283,34 @@ void update_display(void) {
             st7796_fill_rect(x, y, pixel_width, pixel_height, color);
         }
     }
+
+    // Draw column dividers to distinguish bins
+    const uint16_t divider_color = COLOR_DARKGRAY;
+    const int divider_height = SPECTROGRAM_DEPTH * pixel_height;
+    for (int col = 0; col < NUM_FREQ_BINS; col++) {
+        int x = col * pixel_width;
+        st7796_fill_rect(x, start_y, 1, divider_height, divider_color);
+    }
     
     display_update_needed = false;
+}
+
+static void recover_display(void) {
+    // Pause Core 1 and reset it
+    core1_paused = true;
+    sleep_ms(50);
+    multicore_reset_core1();
+
+    // Reinitialize display hardware
+    st7796_init();
+    st7796_set_rotation(1); // Landscape mode (480x320)
+    st7796_fill_screen(COLOR_BLACK);
+
+    // Relaunch Core 1
+    multicore_launch_core1(core1_display_loop);
+    sleep_ms(100);
+    core1_paused = false;
+    core1_last_beat_ms = to_ms_since_boot(get_absolute_time());
 }
 
 // Core 1: Continuous display rendering loop
@@ -292,11 +327,11 @@ void core1_display_loop(void) {
         
         // Check if Core 0 is requesting a pause (for address change)
         if (!core1_paused) {
-            // Update display at ~30 FPS regardless of packet arrival
-            // This ensures smooth scrolling even if packets arrive at different rates
-            if ((now - last_update_time) >= 33) {  // ~30 Hz = 33ms per frame
+            // Update display at a fixed interval to reduce SPI load
+            if ((now - last_update_time) >= DISPLAY_UPDATE_MS) {
                 update_display();
                 last_update_time = now;
+                core1_last_beat_ms = now;
             }
         }
         
@@ -343,12 +378,7 @@ void reconfigure_i2c_address(void) {
     printf("I2C address changed to: 0x%02X\n", current_i2c_address);
     
     // Update display with new address BEFORE resuming Core 1
-    // (prevents SPI bus conflict with Core 1's display rendering)
-    char buffer[32];
-    snprintf(buffer, sizeof(buffer), "I2C: 0x%02X", current_i2c_address);
-    st7796_draw_string(5, 5, buffer, COLOR_YELLOW, COLOR_BLACK, 2);
-    
-    // Resume Core 1 display rendering AFTER display update completes
+    // Resume Core 1 display rendering AFTER address change completes
     core1_paused = false;
     
     address_changed = false;
@@ -430,7 +460,7 @@ int main() {
     printf("Initial I2C Address: 0x%02X\n", current_i2c_address);
     
     // Initialize I2C pins
-    printf("Setting up I2C1 on GPIO %d (SDA) and %d (SCL)\n", I2C_SDA, I2C_SCL);
+    printf("Setting up I2C0 on GPIO %d (SDA) and %d (SCL)\n", I2C_SDA, I2C_SCL);
     gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
     gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
     gpio_pull_up(I2C_SDA);
@@ -504,7 +534,7 @@ int main() {
     printf("\n--- System Ready ---\n");
     printf("I2C slave ready on pins SDA=%d, SCL=%d\n", I2C_SDA, I2C_SCL);
     printf("Listening on address 0x%02X\n", current_i2c_address);
-    printf("Waiting for packets (41 bytes: 0xAA + 20 bins)...\n");
+    printf("Waiting for packets (41 bytes: 0xAA + 40 bins)...\n");
     printf("Use buttons on GPIO %d (up) and %d (down) to change address\n\n", BTN_ADDR_UP, BTN_ADDR_DOWN);
     
     // Display initial I2C address on screen
@@ -514,13 +544,14 @@ int main() {
     
     // Draw legend
     st7796_draw_string(5, 40, "Frequency Spectrum", COLOR_WHITE, COLOR_BLACK, 2);
-    st7796_draw_string(5, 440, "500-5000 Hz (20 bins)", COLOR_GRAY, COLOR_BLACK, 1);
+    st7796_draw_string(5, 440, "500-5500 Hz (40 bins)", COLOR_GRAY, COLOR_BLACK, 1);
     
     // Launch Core 1 for display rendering
     if (DEBUG_VERBOSE) printf("\n[Core 0] Launching Core 1 for display rendering...\n");
     multicore_launch_core1(core1_display_loop);
     sleep_ms(100);  // Give Core 1 time to start
     if (DEBUG_VERBOSE) printf("[Core 0] Core 1 launched, I2C reception ready\n\n");
+    core1_last_beat_ms = to_ms_since_boot(get_absolute_time());
     
     // Main loop - Core 0 handles I2C reception only
     uint32_t loop_count = 0;
@@ -550,6 +581,14 @@ int main() {
             // Reset for next packet
             packet_ready = false;
             rx_index = 0;
+        }
+
+        // Core 1 watchdog: recover display if it stops updating
+        if (!core1_paused && core1_last_beat_ms != 0) {
+            if ((now - core1_last_beat_ms) > CORE1_WATCHDOG_MS) {
+                printf("[Core 0] Display watchdog triggered, recovering Core 1\n");
+                recover_display();
+            }
         }
         
         // Core 0 is now free to handle only I2C reception
