@@ -24,6 +24,7 @@ Or press **Ctrl+Shift+B** and choose from the task list.
 ```
 
 This script automatically:
+
 - Creates the build directory if needed
 - Runs CMake configuration
 - Compiles with Ninja
@@ -67,7 +68,7 @@ The workspace now has separate `tasks.json` files:
 
 After building, you'll find:
 
-```
+``` BASH
 I2C_TestDevice/
 ├── build/
 │   ├── I2C_TestDevice.uf2    ← Flash this to your Pico
@@ -78,49 +79,55 @@ I2C_TestDevice/
 ## Flashing to Pico
 
 ### Method 1: Drag and Drop
+
 1. Hold **BOOTSEL** button on Pico
 2. Connect USB cable
 3. Release BOOTSEL (Pico appears as drive)
 4. Drag `I2C_TestDevice.uf2` to the drive
 
 ### Method 2: Using picotool
+
 ```powershell
 picotool load build/I2C_TestDevice.uf2 -fx
 ```
 
 ## Quick Reference
 
-| Action | Command |
-|--------|---------|
-| First build | `cd I2C_TestDevice; mkdir build; cd build; cmake ..` |
-| Rebuild | `ninja -C build` from I2C_TestDevice folder |
-| Clean build | Delete `build` folder and rebuild |
-| Build script | `.\build.ps1` from I2C_TestDevice folder |
-| VS Code task | Ctrl+Shift+P → "Tasks: Run Build Task" |
+| Action       | Command                                              |
+|--------------|------------------------------------------------------|
+| First build  | `cd I2C_TestDevice; mkdir build; cd build; cmake ..` |
+| Rebuild      | `ninja -C build` from I2C_TestDevice folder          |
+| Clean build  | Delete `build` folder and rebuild                    |
+| Build script | `.\build.ps1` from I2C_TestDevice folder             |
+| VS Code task | Ctrl+Shift+P → "Tasks: Run Build Task"               |
 
 ## Troubleshooting
 
 ### "Wrong project builds when I press Ctrl+Shift+B"
+
 - Use **Ctrl+Shift+P** → **"Tasks: Run Build Task"** instead
 - Select the specific project task you want
 
 ### "CMake can't find source files"
+
 - Make sure you're in the correct project folder
 - Check that `CMakeLists.txt` exists in the current directory
 
 ### "Ninja not found"
+
 - The script uses: `~\.pico-sdk\ninja\v1.12.1\ninja.exe`
 - Verify this path exists
 - If not, adjust the path in `tasks.json` or use `cmake --build .` instead
 
 ### "Build succeeds but wrong .uf2 created"
+
 - Check which folder you're in: `pwd`
 - Make sure you're building from `I2C_TestDevice` not `Speech_Recognition_AudioCapture`
 - Check the terminal output to see which CMakeLists.txt is being used
 
 ## File Locations Summary
 
-```
+```BASH
 Audio_Capture/
 ├── Speech_Recognition_AudioCapture/    ← Main audio capture project
 │   ├── build/

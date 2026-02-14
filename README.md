@@ -43,7 +43,7 @@ This device receives FFT frequency analysis data via I2C from the Speech Recogni
 
 ### Dynamic Address Selection
 
-- I2C address range: 0x60 - 0x67 (8 addresses for 8 beam angles × 5 from master + 3 extra)
+- I2C address range: 0x60 - 0x67
 - Press **GPIO 14 button** to increment address
 - Receives 41-byte packets from audio beamforming master:
   - 1 byte header (0xAA)

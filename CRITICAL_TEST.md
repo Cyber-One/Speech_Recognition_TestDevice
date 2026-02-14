@@ -1,7 +1,9 @@
 # CRITICAL TROUBLESHOOTING - Firmware Not Running
 
 ## Problem Identified
+
 Your Pico is not running the firmware at all:
+
 - LED doesn't blink (code isn't executing)
 - No serial output (USB not initializing)
 - Display backlight is on (power is good)
@@ -9,6 +11,7 @@ Your Pico is not running the firmware at all:
 ## Minimal Test Firmware
 
 I've created a super simple test firmware that ONLY does:
+
 1. Blink LED 5 times immediately (before USB)
 2. Initialize USB
 3. Blink LED 5 more times
@@ -28,13 +31,15 @@ I've created a super simple test firmware that ONLY does:
 ### What Should Happen
 
 **Immediately after flashing:**
+
 - LED should blink 5 times rapidly (1 second total)
 - Short pause (3 seconds for USB)
 - LED blinks 5 more times
 - LED continues blinking every second forever
 
 **Serial Output** (115200 baud on COM6):
-```
+
+```BASH
 === MINIMAL TEST FIRMWARE ===
 If you see this, USB serial is working!
 LED should be blinking continuously...
@@ -49,6 +54,7 @@ LED OFF - Count: 1
 ## If LED Still Doesn't Blink
 
 This would indicate:
+
 1. **Pico hardware fault** - very rare but possible
 2. **Wrong UF2 file** - make sure you're using the newly built one
 3. **Power issue** - try different USB port/cable
@@ -57,6 +63,7 @@ This would indicate:
 ### Pico Recovery Mode
 
 If normal BOOTSEL doesn't work:
+
 1. **Disconnect USB**
 2. **Hold BOOTSEL button**
 3. **While holding**, connect USB
@@ -66,11 +73,13 @@ If normal BOOTSEL doesn't work:
 ## If LED DOES Blink But No Serial
 
 This would indicate:
+
 1. **USB cable is charge-only** (no data lines) - very common!
 2. **USB driver issue** - try different computer
 3. **Serial port issue** - check Device Manager for COM port
 
 ### Check USB Cable
+
 - Try a different USB cable (many are power-only)
 - Use a cable you know works for data (like phone sync cable)
 - Avoid cheap charging cables
@@ -88,11 +97,13 @@ This would indicate:
 ### Why This Test Matters
 
 The minimal test has NO display code, no I2C code, just LED and serial. If this doesn't work, the problem is:
+
 - Hardware (Pico, USB cable, computer port)
 - Build system (UF2 file)
 - NOT the display driver
 
 If minimal test WORKS (LED blinks), then we know:
+
 - Pico hardware is good
 - Build system is good  
 - Problem is in the display initialization code
