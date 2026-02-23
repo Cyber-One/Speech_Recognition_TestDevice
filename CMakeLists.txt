@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.13)
 
+# Target Raspberry Pi Pico 2 (RP2350)
+set(PICO_BOARD pico2 CACHE STRING "Board type")
+
 # Pull in Pico SDK
 include(pico_sdk_import.cmake)
 
