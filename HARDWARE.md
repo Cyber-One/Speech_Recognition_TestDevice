@@ -4,7 +4,7 @@
 
 ```BASH
 ┌─────────────────────────────────────────────────────────────────┐
-│                     Raspberry Pi Pico (RP2040)                  │
+│                  Raspberry Pi Pico 2 (RP2350)                   │
 │                                                                 │
 │  TFT Display (SPI)          Touch Screen (Reserved)             │
 │  ┌──────────────┐           ┌──────────────┐                    │
@@ -65,6 +65,32 @@ Press buttons to select which audio beam to monitor:
 - **Pull-ups**: 4.7kΩ on SDA and SCL (may be built into master)
 - **Cable length**: Keep under 30cm for 400kHz operation
 - **Termination**: Not required at this speed
+- **Master/Slave pins**: Master GPIO8→Slave GPIO20 and Master GPIO9→Slave GPIO21
+- **Ground**: Always connect GND↔GND between both Picos
+
+## Cross-Device Wiring (AudioCapture Master ↔ I2C_TestDevice Slave)
+
+Use these exact connections when pairing with `Speech_Recognition_AudioCapture`:
+
+| Speech_Recognition_AudioCapture (Master) | I2C_TestDevice (Slave) | Purpose |
+|------------------------------------------|--------------------------|---------|
+| GPIO 8 (I2C SDA)                         | GPIO 20 (I2C SDA)        | I2C data |
+| GPIO 9 (I2C SCL)                         | GPIO 21 (I2C SCL)        | I2C clock |
+| GND                                      | GND                      | Common reference (required) |
+
+Important:
+- Shared **GND** is mandatory for reliable I2C.
+- Use **3.3V logic only**.
+- Add 4.7kΩ pull-ups on SDA/SCL if neither board/breakout already provides them.
+
+## Beginner Bring-Up Checklist
+
+1. Flash `I2C_TestDevice` firmware to the slave Pico.
+2. Flash `Speech_Recognition_AudioCapture` firmware to the master Pico.
+3. Connect SDA/SCL/GND using the table above.
+4. Power both boards.
+5. Start with slave address `0x60` (default) to monitor beam `-60°`.
+6. Confirm the TFT updates while the master is transmitting FFT packets.
 
 ### Buttons
 

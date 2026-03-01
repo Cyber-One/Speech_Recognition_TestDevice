@@ -14,6 +14,15 @@
 #define PIN_DC   6
 #define PIN_RST  7
 
+// Conservative SPI speed for reliable bring-up on jumper wires
+#define ST7796_SPI_HZ (4 * 1000 * 1000)
+
+// Panel compatibility options
+// Set to 1 for panels that appear white-inverted with INVOFF
+#define ST7796_COLOR_INVERT 1
+// Set to 1 for BGR color order (common on ST7796 modules)
+#define ST7796_USE_BGR 1
+
 // ST7796 commands
 #define ST7796_NOP        0x00
 #define ST7796_SWRESET    0x01
@@ -34,6 +43,16 @@
 static uint16_t _width = LCD_WIDTH;
 static uint16_t _height = LCD_HEIGHT;
 static uint8_t _rotation = 0;
+
+static uint8_t st7796_madctl_for_rotation(uint8_t rotation) {
+    uint8_t bgr_bit = ST7796_USE_BGR ? 0x08 : 0x00;
+    switch (rotation % 4) {
+        case 0: return 0x40 | bgr_bit; // Portrait
+        case 1: return 0x20 | bgr_bit; // Landscape
+        case 2: return 0x80 | bgr_bit; // Portrait inverted
+        default: return 0xE0 | bgr_bit; // Landscape inverted
+    }
+}
 
 // Simple 5x7 font bitmap
 static const uint8_t font5x7[][5] = {
@@ -171,11 +190,13 @@ static void st7796_set_addr_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16
 void st7796_init(void) {
     printf("ST7796: Initializing SPI...\n");
     // Initialize SPI
-    spi_init(SPI_PORT, 32 * 1000 * 1000); // 32 MHz
+    spi_init(SPI_PORT, ST7796_SPI_HZ);
+    // Many ST7796 breakout variants are stable with SPI mode 3 on RP2040/RP2350
+    spi_set_format(SPI_PORT, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
     gpio_set_function(PIN_SCLK, GPIO_FUNC_SPI);
     gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);
     gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
-    printf("ST7796: SPI initialized at 32 MHz\n");
+    printf("ST7796: SPI initialized at %u Hz (mode 3)\n", ST7796_SPI_HZ);
 
     // Initialize control pins
     printf("ST7796: Initializing control pins (CS=%d, DC=%d, RST=%d)\n", PIN_CS, PIN_DC, PIN_RST);
@@ -204,7 +225,7 @@ void st7796_init(void) {
     st7796_write_command(ST7796_SWRESET);
     sleep_ms(150);
 
-    // Sleep out
+    // Sleep out first for broad panel compatibility
     printf("ST7796: Waking display from sleep...\n");
     st7796_write_command(ST7796_SLPOUT);
     sleep_ms(120);
@@ -212,21 +233,22 @@ void st7796_init(void) {
     // Interface Pixel Format: 16-bit color
     printf("ST7796: Setting 16-bit color mode...\n");
     st7796_write_command(ST7796_COLMOD);
-    st7796_write_data(0x55); // 16-bit/pixel
+    st7796_write_data(0x55);
+    sleep_ms(10);
 
-    // Memory Access Control
+    // Memory Access Control (RGB/BGR + rotation baseline)
     printf("ST7796: Configuring memory access...\n");
     st7796_write_command(ST7796_MADCTL);
-    st7796_write_data(0x48); // Row/column address order
+    st7796_write_data(st7796_madctl_for_rotation(0));
 
-    // Display Inversion Off
-    printf("ST7796: Configuring inversion...\n");
-    st7796_write_command(ST7796_INVOFF);
+    // Display inversion (panel dependent)
+    printf("ST7796: Configuring inversion (%s)...\n", ST7796_COLOR_INVERT ? "ON" : "OFF");
+    st7796_write_command(ST7796_COLOR_INVERT ? ST7796_INVON : ST7796_INVOFF);
 
-    // Display ON
     printf("ST7796: Turning display ON...\n");
     st7796_write_command(ST7796_DISPON);
     sleep_ms(10);
+
     printf("ST7796: Display initialization complete!\n");
 }
 
@@ -234,25 +256,26 @@ void st7796_init(void) {
 void st7796_set_rotation(uint8_t rotation) {
     _rotation = rotation % 4;
     st7796_write_command(ST7796_MADCTL);
+    uint8_t madctl = st7796_madctl_for_rotation(_rotation);
     
     switch (_rotation) {
         case 0: // Portrait
-            st7796_write_data(0x48);
+            st7796_write_data(madctl);
             _width = LCD_WIDTH;
             _height = LCD_HEIGHT;
             break;
         case 1: // Landscape
-            st7796_write_data(0x28);
+            st7796_write_data(madctl);
             _width = LCD_HEIGHT;
             _height = LCD_WIDTH;
             break;
         case 2: // Portrait inverted
-            st7796_write_data(0x88);
+            st7796_write_data(madctl);
             _width = LCD_WIDTH;
             _height = LCD_HEIGHT;
             break;
         case 3: // Landscape inverted
-            st7796_write_data(0xE8);
+            st7796_write_data(madctl);
             _width = LCD_HEIGHT;
             _height = LCD_WIDTH;
             break;

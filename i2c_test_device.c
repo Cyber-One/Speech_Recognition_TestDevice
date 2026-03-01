@@ -230,9 +230,12 @@ uint16_t magnitude_to_color(uint8_t value, uint8_t max_value) {
 // Update TFT display with spectrogram
 void update_display(void) {
     char buffer[32];
+
+    // Clear top status band so text remains readable
+    st7796_fill_rect(0, 0, 480, 24, COLOR_BLACK);
     
     // Display current I2C address at top
-    snprintf(buffer, sizeof(buffer), "I2C: 0x%02X", current_i2c_address);
+    snprintf(buffer, sizeof(buffer), "I2C: 0X%02X", current_i2c_address);
     st7796_draw_string(5, 5, buffer, COLOR_YELLOW, COLOR_BLACK, 2);
     
     // Performance monitoring: show packet rate every 500ms
@@ -243,7 +246,7 @@ void update_display(void) {
         last_perf_check_ms = now;
         
         // Show packets per second (500ms = *2)
-        snprintf(buffer, sizeof(buffer), "%u pkt/s", pkts_received * 2);
+        snprintf(buffer, sizeof(buffer), "%u PKT/S", pkts_received * 2);
         st7796_draw_string(250, 5, buffer, COLOR_CYAN, COLOR_BLACK, 1);
     }
     
@@ -284,14 +287,6 @@ void update_display(void) {
         }
     }
 
-    // Draw column dividers to distinguish bins
-    const uint16_t divider_color = COLOR_DARKGRAY;
-    const int divider_height = SPECTROGRAM_DEPTH * pixel_height;
-    for (int col = 0; col < NUM_FREQ_BINS; col++) {
-        int x = col * pixel_width;
-        st7796_fill_rect(x, start_y, 1, divider_height, divider_color);
-    }
-    
     display_update_needed = false;
 }
 
@@ -422,8 +417,8 @@ int main() {
     
     // Display startup message
     printf("Drawing startup text...\n");
-    st7796_draw_string(10, 10, "I2C FFT Display", COLOR_CYAN, COLOR_BLACK, 3);
-    st7796_draw_string(10, 40, "Initializing...", COLOR_WHITE, COLOR_BLACK, 2);
+    st7796_draw_string(10, 10, "I2C FFT DISPLAY", COLOR_CYAN, COLOR_BLACK, 3);
+    st7796_draw_string(10, 40, "INITIALIZING", COLOR_WHITE, COLOR_BLACK, 2);
     sleep_ms(1000);
     
     printf("Clearing screen again...\n");
@@ -433,8 +428,8 @@ int main() {
     // Show test pattern for 2 seconds
     printf("\n--- Display Test Pattern ---\n");
     st7796_test_pattern();
-    printf("Test pattern displayed for 2 seconds...\n");
-    sleep_ms(2000);
+    printf("Test pattern displayed for 4 seconds...\n");
+    sleep_ms(4000);
     st7796_fill_screen(COLOR_BLACK);
     printf("Test pattern cleared\n");
     
@@ -539,12 +534,12 @@ int main() {
     
     // Display initial I2C address on screen
     char buffer[32];
-    snprintf(buffer, sizeof(buffer), "I2C: 0x%02X", current_i2c_address);
+    snprintf(buffer, sizeof(buffer), "I2C: 0X%02X", current_i2c_address);
     st7796_draw_string(5, 5, buffer, COLOR_YELLOW, COLOR_BLACK, 2);
     
     // Draw legend
-    st7796_draw_string(5, 40, "Frequency Spectrum", COLOR_WHITE, COLOR_BLACK, 2);
-    st7796_draw_string(5, 440, "500-5500 Hz (40 bins)", COLOR_GRAY, COLOR_BLACK, 1);
+    st7796_draw_string(5, 40, "FREQUENCY SPECTRUM", COLOR_WHITE, COLOR_BLACK, 2);
+    st7796_draw_string(5, 300, "500-5500 HZ (40 BINS)", COLOR_GRAY, COLOR_BLACK, 1);
     
     // Launch Core 1 for display rendering
     if (DEBUG_VERBOSE) printf("\n[Core 0] Launching Core 1 for display rendering...\n");

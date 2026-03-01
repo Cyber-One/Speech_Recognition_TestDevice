@@ -6,10 +6,16 @@ This device receives FFT frequency analysis data via I2C from the Speech Recogni
 
 ## Hardware Requirements
 
-- Raspberry Pi Pico (RP2040)
+- Raspberry Pi Pico 2 (RP2350)
 - 3.5" TFT Display with ST7796SU1 controller (320x480 resolution)
 - 2 push buttons for address selection
 - Connections as specified in the pin configuration below
+
+## Build Target
+
+- Firmware target board: `PICO_BOARD=pico2`
+- MCU platform: `RP2350` (`rp2350-arm-s`)
+- Generated output files in `build/` (including `.uf2`, `.elf`, `.bin`, `.hex`) are built for Pico 2 / RP2350.
 
 ## Pin Configuration
 
@@ -39,7 +45,21 @@ This device receives FFT frequency analysis data via I2C from the Speech Recogni
 |------|----------|---------------------------------|
 | 14   | BTN_UP   | Increment I2C address (pull-up) |
 | 15   | BTN_DOWN | Decrement I2C address (pull-up) |
-|------|----------|---------------------------------|
+
+### I2C Link to Speech_Recognition_AudioCapture (Master)
+
+Use these direct wire connections between the two Pico boards:
+
+| Speech_Recognition_AudioCapture (Master) | I2C_TestDevice (Slave) | Purpose |
+|------------------------------------------|--------------------------|---------|
+| GPIO 8 (I2C SDA)                         | GPIO 20 (I2C SDA)        | I2C data |
+| GPIO 9 (I2C SCL)                         | GPIO 21 (I2C SCL)        | I2C clock |
+| GND                                      | GND                      | Common reference (required) |
+
+Optional/Recommended:
+- Add 4.7kΩ pull-up resistors from SDA to 3.3V and SCL to 3.3V if your bus does not already have pull-ups.
+- Keep wiring short (preferably <30 cm) for stable 400 kHz operation.
+- Use 3.3V logic only (RP2350 and RP2040 are 3.3V compatible on I/O).
 
 ### Dynamic Address Selection
 
@@ -60,7 +80,7 @@ cmake ..
 ninja
 ```
 
-Or use VS Code task: **Ctrl+Shift+B** → "Compile Project"
+Or use VS Code task: **Ctrl+Shift+B** → "Compile I2C_TestDevice"
 
 ### Flash to Pico
 
@@ -76,6 +96,19 @@ picotool load build/I2C_TestDevice.uf2 -fx
 
 ## Usage
 
+### Quick Start (Beginner)
+
+1. Build and flash `I2C_TestDevice` firmware to the slave Pico.
+2. Build and flash `Speech_Recognition_AudioCapture` firmware to the master Pico.
+3. Wire I2C exactly as shown in **I2C Link to Speech_Recognition_AudioCapture (Master)**.
+4. Confirm both boards share **GND**.
+5. Power both boards.
+6. Set test device address with buttons:
+  - Start with `0x60` to view the `-60°` beam.
+7. Verify display updates when master is running and transmitting.
+
+### Normal Operation
+
 1. **Power on** the device
 2. Display shows "I2C FFT Display" during initialization
 3. **Default address** is 0x60 (beam -60° from master)
@@ -85,7 +118,7 @@ picotool load build/I2C_TestDevice.uf2 -fx
    - 0x62 = 0° beam (center)
    - 0x63 = +30° beam
    - 0x64 = +60° beam
-5. **Connect I2C** from audio capture master (SDA=GPIO20, SCL=GPIO21)
+5. **Connect I2C** from audio capture master (Master GPIO8→Slave GPIO20, Master GPIO9→Slave GPIO21, and GND↔GND)
 6. **Observe frequency bars** update in real-time
 
 ## How it works (summary)
@@ -137,7 +170,8 @@ $$f_{bin}(n) = 500 + 125n\;\text{Hz},\quad n=0\ldots39$$
 
 ### No I2C data received
 
-- Verify I2C connections on GPIO 20 (SDA) and 21 (SCL)
+- Verify cross-device wiring: Master GPIO8→Slave GPIO20 and Master GPIO9→Slave GPIO21
+- Verify both devices share a common GND
 - Ensure pull-up resistors on I2C bus (usually 4.7kΩ)
 - Check master device is transmitting to correct address
 - Use USB serial monitor to see debug output (115200 baud)

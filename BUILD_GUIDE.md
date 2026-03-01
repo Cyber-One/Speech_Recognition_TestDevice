@@ -2,6 +2,12 @@
 
 This document explains how to build the I2C_TestDevice in a multi-folder workspace.
 
+## Target Platform
+
+- Board: **Raspberry Pi Pico 2**
+- MCU: **RP2350**
+- CMake board config: `PICO_BOARD=pico2`
+
 ## The Issue
 
 When you have both `Speech_Recognition_AudioCapture` and `I2C_TestDevice` in the same VS Code workspace, pressing **Ctrl+Shift+B** defaults to building the first project's tasks.
@@ -71,12 +77,14 @@ After building, you'll find:
 ``` BASH
 I2C_TestDevice/
 ├── build/
-│   ├── I2C_TestDevice.uf2    ← Flash this to your Pico
-│   ├── I2C_TestDevice.elf    ← For debugging
+│   ├── I2C_TestDevice.uf2    ← Flash this to your Pico 2 (RP2350)
+│   ├── I2C_TestDevice.elf    ← RP2350 debug image
 │   └── I2C_TestDevice.dis    ← Disassembly
 ```
 
 ## Flashing to Pico
+
+These firmware outputs are for **Pico 2 (RP2350)**.
 
 ### Method 1: Drag and Drop
 
@@ -136,7 +144,7 @@ Audio_Capture/
 │
 └── I2C_TestDevice/                     ← Display test device project
     ├── build/
-    │   └── I2C_TestDevice.uf2         ← You want this one!
+    │   └── I2C_TestDevice.uf2         ← RP2350/Pico2 firmware
     ├── .vscode/tasks.json
     └── build.ps1                       ← Quick build script
 ```
